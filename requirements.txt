@@ -1,0 +1,13 @@
+scipy
+fire
+s3prl
+torchaudio
+scikit-learn
+sentencepiece
+torch>=2.0
+omegaconf
+soundfile
+git+https://github.com/Baijiong-Lin/LoRA-Torch
+pytorch-metric-learning
+pandas
+gdown
