@@ -4,6 +4,7 @@ import subprocess
 import soundfile as sf
 import torch
 import torch.nn.functional as F
+import pandas as pd
 from torchaudio.transforms import Resample
 from torch.utils.data import Dataset
 import torchaudio
@@ -207,7 +208,7 @@ class VoxCeleb2(Dataset):
                     break
                 
         if to_wav:
-            print("m4a files found. Converting to wav format...")
+            print("wav files not found. Converting to wav format...")
             m4a_to_wav(data_dir)
             print("Converted m4a files to wav format.")
            
@@ -218,15 +219,21 @@ class VoxCeleb2(Dataset):
         self.train_dirs = self.dirs[:100]
         self.test_dirs = self.dirs[100:]
         
-        self.train_file_paths = [os.listdir(os.path.join(data_dir, i, j, k))for i in self.train_dirs for j in os.listdir(os.path.join(data_dir, i)) for k in os.listdir(os.path.join(data_dir, i, j)) if k.endswith('.wav')]
+        self.train_file_paths = [os.path.join(data_dir, i, j, k) for i in self.train_dirs for j in os.listdir(os.path.join(data_dir, i)) for k in os.listdir(os.path.join(data_dir, i, j)) if k.endswith('.wav')]
         self.train_ids = [i.split('/')[-3] for i in self.train_file_paths]
-        self.train_dct = {self.train_ids[i] : i for i in range(len(self.train_ids))}  
+        train_ids = list(set(self.train_ids))
+        self.train_dct = {train_ids[i] : i for i in range(len(train_ids))}  
         
-        self.test_file_paths = [os.listdir(os.path.join(data_dir, i, j, k))for i in self.test_dirs for j in os.listdir(os.path.join(data_dir, i)) for k in os.listdir(os.path.join(data_dir, i, j)) if k.endswith('.wav')]
+        self.test_file_paths = [os.path.join(data_dir, i, j, k) for i in self.test_dirs for j in os.listdir(os.path.join(data_dir, i)) for k in os.listdir(os.path.join(data_dir, i, j)) if k.endswith('.wav')]
         self.test_ids = [i.split('/')[-3] for i in self.test_file_paths]
-        self.test_dct = {self.test_ids[i] : i for i in range(len(self.test_ids))}  
+        test_ids = list(set(self.test_ids))
+        self.test_dct = {test_ids[i] : i for i in range(len(test_ids))}  
         
         self.train = True
+        
+        self.sample_freq = sample_freq
+        
+        self.transform = None
         
     def __len__(self):
         if self.train:
@@ -234,7 +241,7 @@ class VoxCeleb2(Dataset):
         else:
             return len(self.test_file_paths)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         audio_path = None
         id_ = None
         if self.train:
@@ -256,8 +263,88 @@ class VoxCeleb2(Dataset):
             waveform = self.transform(waveform)
 
         return waveform, id_
+    
+    def __getitem__(self, path: str):
+        audio_path = os.path.join(self.data_dir, path)
         
+        waveform, sr1 = sf.read(audio_path)
+
+        waveform = torch.from_numpy(waveform).unsqueeze(0).float()
+        resample1 = Resample(orig_freq=sr1, new_freq=self.sample_freq)
+        waveform = resample1(waveform)
+
+        if self.transform:
+            waveform = self.transform(waveform)
+
+        return waveform
+        
+class VoxCelebmix(Dataset):
+    def __init__(self, data_dir, transform=None, sample_freq=16000):   
+        
+        self.train_metadata = pd.read_csv(os.path.join(data_dir, 'train','metadata.csv'))
+        self.test_metadata = pd.read_csv(os.path.join(data_dir, 'test','metadata.csv'))
+        
+        self.train = True
+        
+        self.sample_freq = sample_freq
+        
+        self.transform = None
+        
+    def __len__(self):
+        if self.train:
+            return self.train_metadata.shape[0]
+        else:
+            return self.test_metadata.shape[0]
+
+    def __getitem__(self, idx: int):
+        mix_path = None
+        src1_path = None
+        src2_path = None
+        
+        sp_1 = None
+        sp_2 = None
+        
+        mix_len = None
+        if self.train:
+            mix_path = self.train_metadata['mix_path'][idx]
+            src1_path = self.train_metadata['src1_path'][idx]
+            src2_path = self.train_metadata['src2_path'][idx]
             
+            sp_1 = self.train_metadata['speaker1'][idx]
+            sp_2 = self.train_metadata['speaker2'][idx]
+            
+            mix_len = self.train_metadata['mixture_length'][idx]
+            
+            
+        else:
+            mix_path = self.train_metadata['mix_path'][idx]
+            src1_path = self.train_metadata['src1_path'][idx]
+            src2_path = self.train_metadata['src2_path'][idx]
+            
+            sp_1 = self.train_metadata['speaker1'][idx]
+            sp_2 = self.train_metadata['speaker2'][idx]
+            
+            mix_len = self.train_metadata['mixture_length'][idx]
+            
+        waveform_mix, sr1_mix = sf.read(mix_path)
+
+        waveform_mix = torch.from_numpy(waveform_mix).unsqueeze(0).float()
+        resample1 = Resample(orig_freq=sr1_mix, new_freq=self.sample_freq)
+        waveform_mix = resample1(waveform_mix)
+
+        waveform_s1, sr1_s1 = sf.read(src1_path)
+
+        waveform_s1 = torch.from_numpy(waveform_s1).unsqueeze(0).float()
+        resample1 = Resample(orig_freq=sr1_s1, new_freq=self.sample_freq)
+        waveform_s1 = resample1(waveform_s1)
+        
+        waveform_s2, sr1_s2 = sf.read(src2_path)
+        
+        waveform_s2 = torch.from_numpy(waveform_s2).unsqueeze(0).float()
+        resample1 = Resample(orig_freq=sr1_s2, new_freq=self.sample_freq)
+        waveform_s2 = resample1(waveform_s2)
+
+        return waveform_mix, waveform_s1, waveform_s2, sp_1, sp_2, mix_len
         
 if __name__ == "__main__":
     download_data()

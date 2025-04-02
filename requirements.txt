@@ -11,3 +11,11 @@ git+https://github.com/Baijiong-Lin/LoRA-Torch
 pytorch-metric-learning
 pandas
 gdown
+speechbrain
+transformers
+ipykernel
+matplotlib
+mir_eval
+pesq
+librosa
+IProgress

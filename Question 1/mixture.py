@@ -81,7 +81,6 @@ def create_mixtures(metadata, output_subdir, sample_rate, mix_ratio, min_duratio
             continue
 
         if sr1 != sample_rate or sr2 != sample_rate:
-            # In production you might add a resampling step here.
             continue
 
         if len(audio1) < sample_rate * min_duration or len(audio2) < sample_rate * min_duration:
@@ -129,7 +128,6 @@ def create_mixtures(metadata, output_subdir, sample_rate, mix_ratio, min_duratio
             "mixture_length": len(mixture)
         })
 
-    # Save metadata CSV file.
     meta_df = pd.DataFrame(mixtures_info)
     meta_csv_path = os.path.join(output_subdir, "metadata.csv")
     meta_df.to_csv(meta_csv_path, index=False)
@@ -145,30 +143,25 @@ def main():
     min_duration = args.min_duration
     num_mixtures = args.num_mixtures
 
-    # List identity directories (each identity should be a folder inside vox2_dir)
     identities = list_identity_dirs(vox2_dir)
     if len(identities) < 100:
         raise ValueError("At least 100 identity directories are needed in the VoxCeleb2 dataset.")
 
     print(f"Found {len(identities)} identities in {vox2_dir}")
 
-    # Sort and split into training and testing scenarios.
     train_identity_dirs = identities[:50]
     test_identity_dirs = identities[50:100]
 
-    # Build metadata (speaker -> list of utterance paths) for training and testing.
     print("Building training metadata...")
     train_metadata = build_metadata(train_identity_dirs)
     print("Building testing metadata...")
     test_metadata = build_metadata(test_identity_dirs)
 
-    # Create output subdirectories for training and testing mixtures.
     train_output_dir = os.path.join(output_dir, "vox2_mix", "train")
     test_output_dir = os.path.join(output_dir, "vox2_mix", "test")
     os.makedirs(train_output_dir, exist_ok=True)
     os.makedirs(test_output_dir, exist_ok=True)
 
-    # Create mixtures for training and testing.
     print("Creating training mixtures...")
     create_mixtures(train_metadata, train_output_dir, sample_rate, mix_ratio, min_duration, num_mixtures)
     print("Creating testing mixtures...")
